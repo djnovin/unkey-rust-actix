@@ -37,12 +37,6 @@ jobs:
       - name: Run Tests
         run: cargo test --all -- --test-threads=1 | tee junit.xml
 
-      - name: Upload Test Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-report
-          path: ./junit.xml
-
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
@@ -107,26 +101,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download Coverage Report
-        uses: actions/download-artifact@v4
-        with:
-          name: lcov-report
-          path: ./lcov.info
-
-      - name: Download Test Report
-        uses: actions/download-artifact@v4
-        with:
-          name: test-report
-          path: ./test-report.json
-
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.coverageReportPaths=lcov.info
-            -Dsonar.testExecutionReportPaths=./test-report.json
+            -Dsonar.projectKey=your_project_key
+            -Dsonar.organization=your_organization
+            -Dsonar.coverageReportPaths=./target/lcov.info
+            -Dsonar.testExecutionReportPaths=./junit.xml
 
   benchmarks:
     runs-on: ubuntu-latest
