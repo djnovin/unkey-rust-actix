@@ -35,13 +35,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Run Tests
-        run: cargo test --all -- --test-threads=1 | tee test-report.json
+        run: cargo test --all -- --test-threads=1 | tee junit.xml
 
       - name: Upload Test Report
         uses: actions/upload-artifact@v4
         with:
           name: test-report
-          path: ./test-report.json
+          path: ./junit.xml
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   audit:
     runs-on: ubuntu-latest
