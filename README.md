@@ -13,7 +13,7 @@ This example shows how to secure a Rust + Actix Web API using Unkey for API key 
 
 ### Create your API
 
-1. Go to https://app.unkey.com/apis and click on the "Create New API" button.
+1. Go to <https://app.unkey.com/apis> and click on the "Create New API" button.
 2. Give it a name.
 3. Click "Create".
 
@@ -54,9 +54,10 @@ cargo run
 ```
 
 5. Test the public route as a guest:
+
 ```bash
 
-curl http://localhost:3000/public
+curl http://localhost:3000/api/v1/public
 
 ```
 
@@ -64,7 +65,7 @@ curl http://localhost:3000/public
 
 ```bash
 
-curl http://localhost:3000/public -H "Authorization: Bearer <YOUR_API_KEY>"
+curl http://localhost:3000/api/v1/public -H "Authorization: Bearer <YOUR_API_KEY>"
 
 ```
 
@@ -72,6 +73,6 @@ curl http://localhost:3000/public -H "Authorization: Bearer <YOUR_API_KEY>"
 
 ```bash
 
-curl http://localhost:3000/protected -H "Authorization: Bearer <YOUR_API_KEY>"
+curl http://localhost:3000/api/v1/protected -H "Authorization: Bearer <YOUR_API_KEY>"
 
 ```
