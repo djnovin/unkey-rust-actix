@@ -1,6 +1,7 @@
 use ::unkey::Client as UnkeyClient;
-use actix_web::{web, App, HttpRequest, HttpServer};
+use actix_web::{middleware::Logger, web, App, HttpRequest, HttpServer};
 use dotenv::dotenv;
+use env_logger::Env;
 use std::env;
 
 #[derive(Clone)]
@@ -29,6 +30,8 @@ async fn protected(_req: HttpRequest) -> String {
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
 
+    env_logger::init_from_env(Env::default().default_filter_or("info"));
+
     let port = env::var("PORT")
         .unwrap_or_else(|_| "3000".to_string())
         .parse()
@@ -47,11 +50,15 @@ async fn main() -> std::io::Result<()> {
     let shared_data = web::Data::new(app_state);
 
     HttpServer::new(move || {
-        App::new().app_data(shared_data.clone()).service(
-            web::scope("/api/v1")
-                .route("/public", web::get().to(public))
-                .route("/protected", web::get().to(protected)),
-        )
+        App::new()
+            .wrap(Logger::default())
+            .wrap(Logger::new("%a %{User-Agent}i"))
+            .app_data(shared_data.clone())
+            .service(
+                web::scope("/api/v1")
+                    .route("/public", web::get().to(public))
+                    .route("/protected", web::get().to(protected)),
+            )
     })
     .bind(("127.0.0.1", port))?
     .run()
