@@ -12,6 +12,46 @@ use std::env;
 use unkey::models::VerifyKeyRequest;
 use unkey::Client as UnkeyClient;
 
+#[derive(Serialize)]
+struct RateLimitRequest {
+    namespace: String,
+    identifier: String,
+    limit: u32,
+    duration: u64,
+    cost: u32,
+    #[serde(rename = "async")]
+    async_field: bool,
+    meta: HashMap<String, String>,
+    resources: Vec<Resource>,
+}
+
+#[derive(Serialize)]
+struct Resource {
+    r#type: String,
+    id: String,
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct RateLimitResponse {
+    remaining: i32,
+    reset: u64,
+}
+
+#[derive(Clone)]
+struct UnkeyApiId(String);
+
+impl From<UnkeyApiId> for String {
+    fn from(api_id: UnkeyApiId) -> Self {
+        api_id.0
+    }
+}
+
+struct AppState {
+    unkey_client: UnkeyClient,
+    unkey_api_id: UnkeyApiId,
+}
+
 async fn verify_key(
     req: ServiceRequest,
     next: Next<impl MessageBody>,
@@ -23,9 +63,7 @@ async fn verify_key(
     let authorization_header = if let Some(header_value) = headers.get("Authorization") {
         header_value.to_str().unwrap_or("")
     } else {
-        return Err(Error::from(actix_web::error::ErrorUnauthorized(
-            "Authorization header missing",
-        )));
+        return Err(actix_web::error::ErrorUnauthorized("Authorization header missing"));
     };
 
     // TODO: Replace with your own user ID
@@ -66,9 +104,8 @@ async fn verify_key(
             if rate_limit_result.remaining > 0 {
                 info!("Rate limit check passed");
             } else {
-                return Err(Error::from(actix_web::error::ErrorTooManyRequests(
-                    "Rate limit exceeded",
-                )));
+                info!("Rate limit resets at: {}", rate_limit_result.reset);
+                return Err(actix_web::error::ErrorTooManyRequests("Rate limit exceeded"));
             }
 
             let res = next.call(req).await?;
@@ -77,57 +114,13 @@ async fn verify_key(
         }
         Ok(res) => {
             error!("Key verification failed: {:?}", res);
-            Err(Error::from(actix_web::error::ErrorUnauthorized(
-                "Key verification failed",
-            )))
+            Err(actix_web::error::ErrorUnauthorized("Key verification failed"))
         }
         Err(err) => {
             error!("Key verification failed: {:?}", err);
-            Err(Error::from(actix_web::error::ErrorUnauthorized(
-                "Key verification failed",
-            )))
+            Err(actix_web::error::ErrorUnauthorized("Key verification failed"))
         }
     }
-}
-
-#[derive(Serialize)]
-struct RateLimitRequest {
-    namespace: String,
-    identifier: String,
-    limit: u32,
-    duration: u64,
-    cost: u32,
-    #[serde(rename = "async")]
-    async_field: bool,
-    meta: HashMap<String, String>,
-    resources: Vec<Resource>,
-}
-
-#[derive(Serialize)]
-struct Resource {
-    r#type: String,
-    id: String,
-    name: String,
-}
-
-#[derive(Deserialize)]
-struct RateLimitResponse {
-    remaining: i32,
-    reset: u64,
-}
-
-#[derive(Clone)]
-struct UnkeyApiId(String);
-
-impl From<UnkeyApiId> for String {
-    fn from(api_id: UnkeyApiId) -> Self {
-        api_id.0
-    }
-}
-
-struct AppState {
-    unkey_client: UnkeyClient,
-    unkey_api_id: UnkeyApiId,
 }
 
 async fn public(_req: HttpRequest) -> String {
