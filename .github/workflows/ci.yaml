@@ -103,11 +103,12 @@ jobs:
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=your_project_key
-            -Dsonar.organization=your_organization
+            -Dsonar.projectKey=djnovin_unkey-rust-actix
+            -Dsonar.organization=djnovin
             -Dsonar.coverageReportPaths=./target/lcov.info
             -Dsonar.testExecutionReportPaths=./junit.xml
 
