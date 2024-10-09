@@ -104,3 +104,31 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::http::StatusCode;
+    use actix_web::{test, web, App};
+
+    #[actix_web::test]
+    async fn test_public_route() {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(AppState {
+                    unkey_client: UnkeyClient::new(""),
+                    unkey_api_id: UnkeyApiId("".to_string()),
+                }))
+                .service(web::scope("/api/v1").route("/public", web::get().to(public))),
+        )
+        .await;
+
+        let req = test::TestRequest::get().uri("/api/v1/public").to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = test::read_body(resp).await;
+        assert_eq!(body, "Hello, world!");
+    }
+}
