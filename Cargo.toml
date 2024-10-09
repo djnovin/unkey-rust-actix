@@ -1,7 +1,14 @@
 [package]
-name = "unkey"
+name = "unkey-rust-actix"
 version = "0.1.0"
 edition = "2021"
+authors = ["djnovin <hello@novinnoori.com>"]
+description = "A Rust API service using Unkey for API key validation with the Actix Web framework."
+license = "MIT"
+repository = "https://github.com/djnovin/unkey-rust-actix"
+readme = "README.md"
+keywords = ["unkey", "api", "actix", "rust"]
+categories = ["web-programming", "api", "security"]
 
 [dependencies]
 actix-web = "4.9.0"

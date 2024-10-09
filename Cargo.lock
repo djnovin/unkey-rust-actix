@@ -1492,17 +1492,6 @@ dependencies = [
 
 [[package]]
 name = "unkey"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "dotenv",
- "env_logger",
- "log",
- "unkey 0.4.0",
-]
-
-[[package]]
-name = "unkey"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0e8f3f2f069033aa3fa93650025c02296e830dda5f5f0631004005fef436d49"
@@ -1511,6 +1500,17 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "unkey-rust-actix"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "dotenv",
+ "env_logger",
+ "log",
+ "unkey",
 ]
 
 [[package]]
