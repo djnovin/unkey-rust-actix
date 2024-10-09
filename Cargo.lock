@@ -1497,6 +1497,7 @@ dependencies = [
  "actix-web",
  "dotenv",
  "env_logger",
+ "log",
  "unkey 0.4.0",
 ]
 

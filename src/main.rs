@@ -1,8 +1,10 @@
-use ::unkey::Client as UnkeyClient;
-use actix_web::{middleware::Logger, web, App, HttpRequest, HttpServer};
+use actix_web::{middleware::Logger, web, App, HttpRequest, HttpResponse, HttpServer};
 use dotenv::dotenv;
 use env_logger::Env;
+use log::{error, info, warn};
 use std::env;
+use unkey::models::VerifyKeyRequest;
+use unkey::Client as UnkeyClient;
 
 #[derive(Clone)]
 struct UnkeyApiId(String);
@@ -22,8 +24,45 @@ async fn public(_req: HttpRequest) -> String {
     "Hello, world!".to_owned()
 }
 
-async fn protected(_req: HttpRequest) -> String {
-    "Hello, world!".to_owned()
+async fn protected(req: HttpRequest, data: web::Data<AppState>) -> HttpResponse {
+    let auth_header = match req.headers().get("Authorization") {
+        Some(header) => header,
+        None => {
+            warn!("Missing Authorization header");
+            return HttpResponse::Unauthorized().body("Missing Authorization header");
+        }
+    };
+
+    let auth_str = match auth_header.to_str() {
+        Ok(auth_str) => auth_str,
+        Err(_) => {
+            warn!("Invalid Authorization header format");
+            return HttpResponse::Unauthorized().body("Invalid Authorization header format");
+        }
+    };
+
+    let token = auth_str.trim_start_matches("Bearer ");
+    info!("Received token: {}", token);
+
+    let verify_request = VerifyKeyRequest {
+        key: token.to_string(),
+        api_id: data.unkey_api_id.clone().into(),
+    };
+
+    match data.unkey_client.verify_key(verify_request).await {
+        Ok(res) if res.valid => {
+            info!("Token verified successfully");
+            HttpResponse::Ok().body("Protected data")
+        }
+        Ok(_) => {
+            warn!("Token verification failed");
+            HttpResponse::Unauthorized().body("Invalid token")
+        }
+        Err(err) => {
+            error!("Error verifying token: {:?}", err);
+            HttpResponse::InternalServerError().body(format!("Error: {:?}", err))
+        }
+    }
 }
 
 #[actix_web::main]
@@ -37,8 +76,8 @@ async fn main() -> std::io::Result<()> {
         .parse()
         .expect("PORT must be a number");
 
-    let unkey_root_key = env::var("UNKEY_ROOT_KEY").unwrap_or_default();
-    let unkey_api_id = UnkeyApiId(env::var("UNKEY_API_ID").unwrap_or_default());
+    let unkey_root_key = env::var("UNKEY_ROOT_KEY").expect("UNKEY_ROOT_KEY must be set");
+    let unkey_api_id = UnkeyApiId(env::var("UNKEY_API_ID").expect("UNKEY_API_ID must be set"));
 
     let unkey_client = UnkeyClient::new(&unkey_root_key);
 
@@ -61,6 +100,7 @@ async fn main() -> std::io::Result<()> {
             )
     })
     .bind(("127.0.0.1", port))?
+    .shutdown_timeout(60)
     .run()
     .await
 }
