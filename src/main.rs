@@ -1,13 +1,94 @@
-use actix_web::{middleware::Logger, web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::body::MessageBody;
+use actix_web::dev::{ServiceRequest, ServiceResponse};
+use actix_web::middleware::{from_fn, Logger, Next};
+use actix_web::{web, App, Error, HttpRequest, HttpServer};
 use dotenv::dotenv;
 use env_logger::Env;
-use log::{error, info, warn};
+use log::{error, info};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use unkey::models::VerifyKeyRequest;
 use unkey::Client as UnkeyClient;
+
+async fn middleware(
+    req: ServiceRequest,
+    next: Next<impl MessageBody>,
+) -> Result<ServiceResponse<impl MessageBody>, Error> {
+    let headers = req.headers();
+    let data = req.app_data::<web::Data<AppState>>().unwrap();
+    let client = req.app_data::<web::Data<Client>>().unwrap();
+
+    let authorization_header = if let Some(header_value) = headers.get("Authorization") {
+        header_value.to_str().unwrap_or("")
+    } else {
+        return Err(Error::from(actix_web::error::ErrorUnauthorized(
+            "Authorization header missing",
+        )));
+    };
+
+    // TODO: Replace with your own user ID
+    let user_id = "some_user_id";
+
+    let verify_request = VerifyKeyRequest {
+        key: authorization_header.to_string(),
+        api_id: data.unkey_api_id.clone().into(),
+    };
+
+    match data.unkey_client.verify_key(verify_request).await {
+        Ok(res) if res.valid => {
+            let rate_limit_request = RateLimitRequest {
+                namespace: "email.outbound".to_string(),
+                identifier: user_id.to_string(),
+                limit: 10,
+                duration: 60000,
+                cost: 2,
+                async_field: true,
+                meta: HashMap::new(),
+                resources: vec![Resource {
+                    r#type: "project".to_string(),
+                    id: "p_123".to_string(),
+                    name: "dub".to_string(),
+                }],
+            };
+
+            let rate_limit_response = client
+                .post("https://api.unkey.dev/v1/ratelimits.limit")
+                .bearer_auth(authorization_header)
+                .json(&rate_limit_request)
+                .send()
+                .await
+                .unwrap();
+
+            let rate_limit_result = rate_limit_response.json::<RateLimitResponse>().await?;
+
+            if rate_limit_result.remaining > 0 {
+                info!("Rate limit check passed");
+            } else {
+                return Err(Error::from(actix_web::error::ErrorTooManyRequests(
+                    "Rate limit exceeded",
+                )));
+            }
+
+            let res = next.call(req).await?;
+
+            Ok(res)
+        }
+        Ok(res) => {
+            error!("Key verification failed: {:?}", res);
+            Err(Error::from(actix_web::error::ErrorUnauthorized(
+                "Key verification failed",
+            )))
+        }
+        Err(err) => {
+            error!("Key verification failed: {:?}", err);
+            Err(Error::from(actix_web::error::ErrorUnauthorized(
+                "Key verification failed",
+            )))
+        }
+    }
+}
 
 #[derive(Serialize)]
 struct RateLimitRequest {
@@ -16,8 +97,8 @@ struct RateLimitRequest {
     limit: u32,
     duration: u64,
     cost: u32,
-    #[serde(rename = "async")] // Keeps the "async" field in JSON, but uses a different name in Rust
-    async_field: bool, // Renamed in Rust to avoid keyword conflict
+    #[serde(rename = "async")]
+    async_field: bool,
     meta: HashMap<String, String>,
     resources: Vec<Resource>,
 }
@@ -33,34 +114,6 @@ struct Resource {
 struct RateLimitResponse {
     remaining: i32,
     reset: u64,
-}
-
-async fn check_rate_limit(token: &str, user_id: &str, client: &Client) -> Result<RateLimitResponse, reqwest::Error> {
-    let rate_limit_request = RateLimitRequest {
-        namespace: "email.outbound".to_string(),
-        identifier: user_id.to_string(),
-        limit: 10,
-        duration: 60000,
-        cost: 2,
-        async_field: true,
-        meta: HashMap::new(),
-        resources: vec![Resource {
-            r#type: "project".to_string(),
-            id: "p_123".to_string(),
-            name: "dub".to_string(),
-        }],
-    };
-
-    let response = client
-        .post("https://api.unkey.dev/v1/ratelimits.limit")
-        .bearer_auth(token)
-        .json(&rate_limit_request)
-        .send()
-        .await?
-        .json::<RateLimitResponse>()
-        .await?;
-
-    Ok(response)
 }
 
 #[derive(Clone)]
@@ -81,62 +134,8 @@ async fn public(_req: HttpRequest) -> String {
     "Hello, world!".to_owned()
 }
 
-async fn protected(req: HttpRequest, data: web::Data<AppState>, client: web::Data<Client>) -> HttpResponse {
-    let auth_header = match req.headers().get("Authorization") {
-        Some(header) => header,
-        None => {
-            warn!("Missing Authorization header");
-            return HttpResponse::Unauthorized().body("Missing Authorization header");
-        }
-    };
-
-    let auth_str = match auth_header.to_str() {
-        Ok(auth_str) => auth_str,
-        Err(_) => {
-            warn!("Invalid Authorization header format");
-            return HttpResponse::Unauthorized().body("Invalid Authorization header format");
-        }
-    };
-
-    let token = auth_str.trim_start_matches("Bearer ");
-    info!("Received token: {}", token);
-
-    // Asynchronous rate limiting check
-    let user_id = "user_123";
-    match check_rate_limit(token, user_id, client.get_ref()).await {
-        Ok(rate_limit_response) => {
-            if rate_limit_response.remaining <= 0 {
-                return HttpResponse::TooManyRequests().body(format!(
-                    "Rate limit exceeded. Try again in {} seconds",
-                    rate_limit_response.reset
-                ));
-            }
-        }
-        Err(err) => {
-            error!("Rate limit check failed: {:?}", err);
-            return HttpResponse::InternalServerError().body("Rate limit check failed");
-        }
-    }
-
-    let verify_request = VerifyKeyRequest {
-        key: token.to_string(),
-        api_id: data.unkey_api_id.clone().into(),
-    };
-
-    match data.unkey_client.verify_key(verify_request).await {
-        Ok(res) if res.valid => {
-            info!("Token verified successfully");
-            HttpResponse::Ok().body("Protected data")
-        }
-        Ok(_) => {
-            warn!("Token verification failed");
-            HttpResponse::Unauthorized().body("Invalid token")
-        }
-        Err(err) => {
-            error!("Error verifying token: {:?}", err);
-            HttpResponse::InternalServerError().body(format!("Error: {:?}", err))
-        }
-    }
+async fn protected(_req: HttpRequest) -> String {
+    "Hello, protected world!".to_owned()
 }
 
 #[actix_web::main]
@@ -161,7 +160,6 @@ async fn main() -> std::io::Result<()> {
     };
 
     let shared_data = web::Data::new(app_state);
-
     let client = web::Data::new(Client::new());
 
     HttpServer::new(move || {
@@ -170,6 +168,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::new("%a %{User-Agent}i"))
             .app_data(client.clone())
             .app_data(shared_data.clone())
+            .wrap(from_fn(middleware))
             .service(
                 web::scope("/api/v1")
                     .route("/public", web::get().to(public))

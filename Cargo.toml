@@ -12,6 +12,7 @@ categories = ["web-programming", "api", "security"]
 
 [dependencies]
 actix-web = "4.9.0"
+actix-web-lab = "0.22.0"
 dotenv = "0.15.0"
 env_logger = "0.11.5"
 log = "0.4.22"
