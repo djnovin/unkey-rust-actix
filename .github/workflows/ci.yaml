@@ -89,13 +89,13 @@ jobs:
         run: cargo install cargo-tarpaulin
 
       - name: Run Coverage (LCOV)
-        run: cargo tarpaulin --out Lcov
+        run: cargo tarpaulin --out Lcov --engine=llvm --output-dir target
 
-      - name: Upload Coverage (LCOV)
-        uses: actions/upload-artifact@v4
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
         with:
-          name: lcov-report
-          path: ./lcov.info
+          file: ./target/lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   sonarcloud:
     name: SonarCloud
@@ -127,25 +127,6 @@ jobs:
           args: >
             -Dsonar.coverageReportPaths=lcov.info
             -Dsonar.testExecutionReportPaths=./test-report.json
-
-  codecov:
-    runs-on: ubuntu-latest
-    needs: tarpaulin
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download LCOV Report
-        uses: actions/download-artifact@v4
-        with:
-          name: lcov-report
-          path: ./lcov.info
-
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
 
   benchmarks:
     runs-on: ubuntu-latest
