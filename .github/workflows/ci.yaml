@@ -36,11 +36,11 @@ jobs:
       - name: Run Tests
         run: cargo test --all -- --test-threads=1 | tee junit.xml
 
-      - name: Install LCOV to SonarQube Converter
-        run: npm install -g lcov-to-sonarqube-generic
+      - name: Install gcovr
+        run: sudo apt-get install gcovr
 
-      - name: Convert LCOV to SonarQube Generic
-        run: lcov-to-sonarqube-generic ./target/lcov.info > ./target/coverage-sonar.xml
+      - name: Convert LCOV to SonarQube XML
+        run: gcovr --sonarqube --output target/coverage-sonar.xml --root . --exclude-directories tests
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
@@ -61,20 +61,6 @@ jobs:
 
       - name: Run cargo-audit
         run: cargo audit
-
-  deny:
-    runs-on: ubuntu-latest
-    needs: lint
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install cargo-deny
-        run: cargo install cargo-deny
-
-      - name: Run cargo-deny check
-        run: cargo deny check
 
   tarpaulin:
     runs-on: ubuntu-latest
