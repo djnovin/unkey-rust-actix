@@ -61,7 +61,7 @@ async fn verify_key(
                 .await
                 .unwrap();
 
-            let rate_limit_result = rate_limit_response.json::<RateLimitResponse>().await?;
+            let rate_limit_result = rate_limit_response.json::<RateLimitResponse>().await.unwrap();
 
             if rate_limit_result.remaining > 0 {
                 info!("Rate limit check passed");
