@@ -15,6 +15,6 @@ actix-web = "4.9.0"
 dotenv = "0.15.0"
 env_logger = "0.11.5"
 log = "0.4.22"
-reqwest = "0.12.8"
-serde = "1.0.210"
+reqwest = { version = "0.12.8", features = ["json"] }
+serde = { version = "1.0.210", features = ["derive"] }
 unkey = "0.4"

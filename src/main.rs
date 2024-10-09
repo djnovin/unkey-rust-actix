@@ -2,9 +2,66 @@ use actix_web::{middleware::Logger, web, App, HttpRequest, HttpResponse, HttpSer
 use dotenv::dotenv;
 use env_logger::Env;
 use log::{error, info, warn};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use unkey::models::VerifyKeyRequest;
 use unkey::Client as UnkeyClient;
+
+#[derive(Serialize)]
+struct RateLimitRequest {
+    namespace: String,
+    identifier: String,
+    limit: u32,
+    duration: u64,
+    cost: u32,
+    #[serde(rename = "async")] // Keeps the "async" field in JSON, but uses a different name in Rust
+    async_field: bool, // Renamed in Rust to avoid keyword conflict
+    meta: HashMap<String, String>,
+    resources: Vec<Resource>,
+}
+
+#[derive(Serialize)]
+struct Resource {
+    r#type: String,
+    id: String,
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct RateLimitResponse {
+    remaining: i32,
+    reset: u64,
+}
+
+async fn check_rate_limit(token: &str, user_id: &str, client: &Client) -> Result<RateLimitResponse, reqwest::Error> {
+    let rate_limit_request = RateLimitRequest {
+        namespace: "email.outbound".to_string(),
+        identifier: user_id.to_string(),
+        limit: 10,
+        duration: 60000,
+        cost: 2,
+        async_field: true,
+        meta: HashMap::new(),
+        resources: vec![Resource {
+            r#type: "project".to_string(),
+            id: "p_123".to_string(),
+            name: "dub".to_string(),
+        }],
+    };
+
+    let response = client
+        .post("https://api.unkey.dev/v1/ratelimits.limit")
+        .bearer_auth(token)
+        .json(&rate_limit_request)
+        .send()
+        .await?
+        .json::<RateLimitResponse>()
+        .await?;
+
+    Ok(response)
+}
 
 #[derive(Clone)]
 struct UnkeyApiId(String);
@@ -24,7 +81,7 @@ async fn public(_req: HttpRequest) -> String {
     "Hello, world!".to_owned()
 }
 
-async fn protected(req: HttpRequest, data: web::Data<AppState>) -> HttpResponse {
+async fn protected(req: HttpRequest, data: web::Data<AppState>, client: web::Data<Client>) -> HttpResponse {
     let auth_header = match req.headers().get("Authorization") {
         Some(header) => header,
         None => {
@@ -43,6 +100,23 @@ async fn protected(req: HttpRequest, data: web::Data<AppState>) -> HttpResponse 
 
     let token = auth_str.trim_start_matches("Bearer ");
     info!("Received token: {}", token);
+
+    // Asynchronous rate limiting check
+    let user_id = "user_123";
+    match check_rate_limit(token, user_id, client.get_ref()).await {
+        Ok(rate_limit_response) => {
+            if rate_limit_response.remaining <= 0 {
+                return HttpResponse::TooManyRequests().body(format!(
+                    "Rate limit exceeded. Try again in {} seconds",
+                    rate_limit_response.reset
+                ));
+            }
+        }
+        Err(err) => {
+            error!("Rate limit check failed: {:?}", err);
+            return HttpResponse::InternalServerError().body("Rate limit check failed");
+        }
+    }
 
     let verify_request = VerifyKeyRequest {
         key: token.to_string(),
@@ -88,10 +162,13 @@ async fn main() -> std::io::Result<()> {
 
     let shared_data = web::Data::new(app_state);
 
+    let client = web::Data::new(Client::new());
+
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
+            .app_data(client.clone())
             .app_data(shared_data.clone())
             .service(
                 web::scope("/api/v1")
