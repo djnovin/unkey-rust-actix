@@ -224,11 +224,10 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::new("%a %{User-Agent}i"))
             .app_data(client.clone())
             .app_data(shared_data.clone())
-            .wrap(from_fn(verify_key))
             .service(
                 web::scope("/api/v1")
                     .route("/public", web::get().to(public))
-                    .route("/protected", web::get().to(protected)),
+                    .route("/protected", web::get().wrap(from_fn(verify_key)).to(protected)),
             )
     })
     .bind(("127.0.0.1", port))?
