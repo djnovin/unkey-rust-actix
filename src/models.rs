@@ -48,8 +48,10 @@ pub struct ApiError {
 
 #[derive(Deserialize)]
 pub struct RateLimitResponse {
+    #[allow(dead_code)]
     pub limit: Option<i32>,
     pub remaining: Option<i32>,
     pub reset: Option<u64>,
+    #[allow(dead_code)]
     pub success: Option<bool>,
 }
