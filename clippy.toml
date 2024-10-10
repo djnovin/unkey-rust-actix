@@ -1,4 +1,1 @@
 cognitive-complexity-threshold = 1337
-
-# Allow needless return globally
-allow = ["clippy::needless_return"]

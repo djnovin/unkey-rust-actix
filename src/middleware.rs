@@ -87,13 +87,13 @@ pub async fn verify_key(
                         Ok(res)
                     } else {
                         log::info!("Rate limit exceeded. Resets at: {:?}", rate_limit_result.reset);
-                        return Err(actix_web::error::ErrorTooManyRequests("Rate limit exceeded"));
+                        Err(actix_web::error::ErrorTooManyRequests("Rate limit exceeded"))
                     }
                 } else {
                     log::error!("Rate limit response missing 'remaining' field");
-                    return Err(actix_web::error::ErrorInternalServerError(
+                    Err(actix_web::error::ErrorInternalServerError(
                         "Invalid rate limit response",
-                    ));
+                    ))
                 }
             } else {
                 // Parse the error response
@@ -111,10 +111,10 @@ pub async fn verify_key(
                     error_response.error.request_id
                 );
 
-                return Err(actix_web::error::ErrorBadRequest(format!(
+                Err(actix_web::error::ErrorBadRequest(format!(
                     "Rate limit request failed: {} (Request ID: {})",
                     error_response.error.message, error_response.error.request_id
-                )));
+                )))
             }
         }
         Ok(res) => {
