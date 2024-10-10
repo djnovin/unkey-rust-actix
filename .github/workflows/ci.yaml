@@ -36,11 +36,11 @@ jobs:
       - name: Run Tests
         run: cargo test --all -- --test-threads=1 | tee junit.xml
 
-      - name: Install gcovr
-        run: sudo apt-get install gcovr
+      - name: Install LCOV to Cobertura converter
+        run: npm install -g lcov-to-cobertura-xml
 
-      - name: Convert LCOV to SonarQube XML
-        run: gcovr --sonarqube --output target/coverage-sonar.xml --root . --exclude-directories tests
+      - name: Convert LCOV to Cobertura XML
+        run: lcov-to-cobertura-xml target/lcov.info --output target/coverage-cobertura.xml
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
@@ -101,7 +101,7 @@ jobs:
           args: >
             -Dsonar.projectKey=djnovin_unkey-rust-actix
             -Dsonar.organization=djnovin
-            -Dsonar.coverageReportPaths=./target/coverage-sonar.xml
+            -Dsonar.coverageReportPaths=./target/coverage-cobertura.xml
             -Dsonar.testExecutionReportPaths=./junit.xml
 
   benchmarks:
