@@ -43,7 +43,8 @@ struct ApiError {
     code: String,
     docs: String,
     message: String,
-    requestId: String,
+    #[serde(rename = "requestId")]
+    request_id: String,
 }
 
 #[derive(Deserialize)]
@@ -165,12 +166,12 @@ async fn verify_key(
                     error_response.error.code,
                     error_response.error.message,
                     error_response.error.docs,
-                    error_response.error.requestId
+                    error_response.error.request_id
                 );
 
                 return Err(actix_web::error::ErrorBadRequest(format!(
                     "Rate limit request failed: {} (Request ID: {})",
-                    error_response.error.message, error_response.error.requestId
+                    error_response.error.message, error_response.error.request_id
                 )));
             }
         }
