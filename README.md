@@ -73,6 +73,6 @@ curl http://localhost:3000/api/v1/public -H "Authorization: Bearer <YOUR_API_KEY
 
 ```bash
 
-curl http://localhost:3000/api/v1/protected -H "Authorization: Bearer 3ZiAsxZbqdNUBpqoGczVmQoc"
+curl http://localhost:3000/api/v1/protected -H "Authorization: Bearer <YOUR_API_KEY>"
 
 ```
